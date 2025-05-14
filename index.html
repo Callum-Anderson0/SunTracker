@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera with Circle Overlay</title>
+    <title>Camera with Sensors</title>
     <style>
         body { margin: 0; padding: 20px; }
         .container {
@@ -16,77 +16,43 @@
             height: auto;
         }
         button { padding: 10px 20px; margin: 10px 0; }
+        .data { margin: 20px 0; padding: 10px; background: #f0f0f0; }
+        .error { color: red; }
     </style>
 </head>
 <body>
     <button onclick="startCamera()">Start Camera</button>
-
-    <button onclick="startLocation()">Start Location Tracking</button>
+    <button onclick="startLocation()">Start Location</button>
     <button onclick="startOrientation()">Start Orientation</button>
+    
     <div class="data" id="location">Location: Waiting...</div>
-    <div class="data" id="orientation">Orientation: Waiting...</div>
+    <div class="data" id="orientation">Orientation: Click button to start</div>
+    <div id="error" class="error"></div>
 
-        
+    <div class="container">
+        <video id="preview" playsinline autoplay></video>
+        <canvas id="overlay"></canvas>
+    </div>
+
     <script>
+        let isOrientationActive = false;
 
-        function startLocation() {
-            if (!navigator.geolocation) {
-                alert("Geolocation is not supported by your browser");
-                return;
-            }
-
-            navigator.geolocation.watchPosition(
-                position => {
-                    document.getElementById('location').innerHTML = `
-                        Latitude: ${position.coords.latitude.toFixed(6)}<br>
-                        Longitude: ${position.coords.longitude.toFixed(6)}<br>
-                        Accuracy: ${position.coords.accuracy} meters
-                    `;
-                },
-                error => {
-                    alert(`Error: ${error.message}`);
-                },
-                {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
-                }
-            );
+        // iOS detection
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         }
 
-        // Device Orientation (Compass)
-        function startOrientation() {
-            if (typeof DeviceOrientationEvent !== 'function' || 
-                !DeviceOrientationEvent.requestPermission) {
-                alert("Device orientation not supported");
-                return;
-            }
-
-            DeviceOrientationEvent.requestPermission()
-                .then(permission => {
-                    if (permission === 'granted') {
-                        window.addEventListener('deviceorientationabsolute', handleOrientation);
-                    } else {
-                        alert("Orientation permission denied");
-                    }
-                })
-                .catch(console.error);
+        function showError(message) {
+            document.getElementById('error').textContent = message;
         }
 
-        function handleOrientation(event) {
-            const heading = event.alpha; // Compass heading (0-360)
-            const tiltFront = event.beta;  // Front/back tilt (-180 to 180)
-            const tiltSide = event.gamma;   // Left/right tilt (-90 to 90)
-
-            document.getElementById('orientation').innerHTML = `
-                Compass Heading: ${heading.toFixed(2)}°<br>
-                Tilt Front/Back: ${tiltFront.toFixed(2)}°<br>
-                Tilt Left/Right: ${tiltSide.toFixed(2)}°
-            `;
+        function clearError() {
+            document.getElementById('error').textContent = '';
         }
-         async function startCamera() {
+
+        async function startCamera() {
+            clearError();
             const video = document.getElementById('preview');
-            const errorDiv = document.getElementById('error');
             const canvas = document.getElementById('overlay');
             const ctx = canvas.getContext('2d');
 
@@ -106,37 +72,103 @@
                 video.srcObject = stream;
                 
                 video.onloadedmetadata = () => {
-                    // Set canvas to match video dimensions
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     
-                    // Draw the circle
                     ctx.beginPath();
                     ctx.arc(
-                        canvas.width/2,  // X center
-                        canvas.height/2, // Y center
-                        100,             // Radius
-                        0,               // Start angle
-                        Math.PI * 2      // End angle
+                        canvas.width/2,
+                        canvas.height/2,
+                        100,
+                        0,
+                        Math.PI * 2
                     );
-                    ctx.strokeStyle = '#ff0000'; // Red color
-                    ctx.lineWidth = 5;           // Line thickness
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 5;
                     ctx.stroke();
                 };
 
                 video.play();
-                errorDiv.textContent = '';
 
             } catch (err) {
-                errorDiv.textContent = `Error: ${err.message}`;
-                console.error('Camera error:', err);
+                showError(`Camera Error: ${err.message}`);
             }
         }
+
+        function startLocation() {
+            clearError();
+            if (!navigator.geolocation) {
+                showError("Geolocation not supported");
+                return;
+            }
+
+            navigator.geolocation.watchPosition(
+                position => {
+                    document.getElementById('location').innerHTML = `
+                        Latitude: ${position.coords.latitude.toFixed(6)}<br>
+                        Longitude: ${position.coords.longitude.toFixed(6)}<br>
+                        Accuracy: ${position.coords.accuracy}m
+                    `;
+                },
+                error => {
+                    showError(`Location Error: ${error.message}`);
+                },
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        }
+
+        function startOrientation() {
+            clearError();
+            if (!isIOS()) {
+                showError("Orientation requires iOS device");
+                return;
+            }
+
+            if (typeof DeviceOrientationEvent === 'undefined' || 
+                !DeviceOrientationEvent.requestPermission) {
+                showError("Orientation API not supported");
+                return;
+            }
+
+            if (isOrientationActive) {
+                showError("Orientation already active");
+                return;
+            }
+
+            DeviceOrientationEvent.requestPermission()
+                .then(permission => {
+                    if (permission === 'granted') {
+                        isOrientationActive = true;
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        document.getElementById('orientation').textContent = 
+                            "Orientation: Move device to see data...";
+                    } else {
+                        showError("Orientation permission denied");
+                    }
+                })
+                .catch(error => {
+                    showError(`Orientation Error: ${error.message}`);
+                });
+        }
+
+        function handleOrientation(event) {
+            if (!event.absolute) {
+                showError("Requires absolute orientation values");
+                return;
+            }
+
+            const data = {
+                alpha: event.alpha?.toFixed(2) ?? 'N/A',
+                beta: event.beta?.toFixed(2) ?? 'N/A',
+                gamma: event.gamma?.toFixed(2) ?? 'N/A'
+            };
+
+            document.getElementById('orientation').innerHTML = `
+                Compass: ${data.alpha}°<br>
+                Front/Back Tilt: ${data.beta}°<br>
+                Left/Right Tilt: ${data.gamma}°
+            `;
+        }
     </script>
-    <div class="container">
-        <video id="preview" playsinline autoplay></video>
-        <canvas id="overlay"></canvas>
-    </div>
-    <div id="error" style="color: red;"></div>
 </body>
 </html>
