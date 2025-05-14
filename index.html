@@ -6,73 +6,39 @@
 </head>
 <body>
     <h1>HELLO</h1>
-    <video id="video" autoplay playsinline></video>
-<button id="switchCamera">Switch Camera</button>
+    <button onclick="startCamera()">Start Rear Camera</button>
+    <video id="preview" playsinline autoplay></video>
+    <div id="error" style="color: red;"></div>
 
-<script>
-let currentStream = null;
-let currentDeviceId = null;
-let videoElement = document.getElementById('video');
-let switchButton = document.getElementById('switchCamera');
-let cameras = [];
+    <script>
+        async function startCamera() {
+            const video = document.getElementById('preview');
+            const errorDiv = document.getElementById('error');
+            
+            try {
+                // iOS requires secure context (HTTPS or localhost)
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera API not supported');
+                }
 
-// Function to start the video stream for a specific camera
-function startStream(deviceId) {
-  // Stop the current stream if it exists
-  if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop());
-  }
+                // Get environment-facing (rear) camera
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
 
-  // Request the video stream for the selected device
-  navigator.mediaDevices.getUserMedia({
-    video: { deviceId: deviceId }
-  })
-    .then(function(stream) {
-      currentStream = stream;
-      videoElement.srcObject = stream; // Attach the new stream to the video element
-      currentDeviceId = deviceId; // Store the current device ID
-    })
-    .catch(function(error) {
-      console.error('Error accessing camera: ', error);
-    });
-}
-
-// Get all available video input devices (cameras)
-function getCameras() {
-  return navigator.mediaDevices.enumerateDevices()
-    .then(devices => {
-      // Filter out the video input devices (cameras)
-      return devices.filter(device => device.kind === 'videoinput');
-    })
-    .catch(err => console.error('Error enumerating devices:', err));
-}
-
-// Initialize camera list and start stream with the first available camera
-function initializeCamera() {
-  getCameras().then(devices => {
-    cameras = devices;
-    if (cameras.length > 0) {
-      // Start with the first camera (usually front camera)
-      startStream(cameras[0].deviceId);
-    } else {
-      console.error('No cameras found');
-    }
-  });
-}
-
-// Switch camera on button click
-switchButton.addEventListener('click', function() {
-  if (cameras.length > 1) {
-    // Find the current camera and get the next one
-    let currentIndex = cameras.findIndex(camera => camera.deviceId === currentDeviceId);
-    let nextIndex = (currentIndex + 1) % cameras.length; // Cycle through cameras
-    startStream(cameras[nextIndex].deviceId); // Start the next camera
-  }
-});
-
-// Initialize the camera list and stream on page load
-initializeCamera();
-</script>
+                video.srcObject = stream;
+                video.play();
+                errorDiv.textContent = '';
+            } catch (err) {
+                errorDiv.textContent = `Error: ${err.message}`;
+                console.error('Camera error:', err);
+            }
+        }
+    </script>
 
 </body>
 </html>
