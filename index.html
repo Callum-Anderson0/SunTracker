@@ -54,7 +54,7 @@
     getCameras().then(devices => {
     cameras = devices;
     if (cameras.length > 0) {
-        startStream(cameras[0].deviceId); // Start with the first camera (usually front camera)
+        startStream(cameras[1].deviceId); // Start with the first camera (usually front camera)
     }
     });
 
