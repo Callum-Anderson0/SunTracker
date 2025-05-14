@@ -84,16 +84,7 @@
                 Tilt Left/Right: ${tiltSide.toFixed(2)}°
             `;
         }
-    </script>
-    <div class="container">
-        <video id="preview" playsinline autoplay></video>
-        <canvas id="overlay"></canvas>
-    </div>
-    <script>
-    <div id="error" style="color: red;"></div>
-
-
-        async function startCamera() {
+         async function startCamera() {
             const video = document.getElementById('preview');
             const errorDiv = document.getElementById('error');
             const canvas = document.getElementById('overlay');
@@ -142,5 +133,10 @@
             }
         }
     </script>
+    <div class="container">
+        <video id="preview" playsinline autoplay></video>
+        <canvas id="overlay"></canvas>
+    </div>
+    <div id="error" style="color: red;"></div>
 </body>
 </html>
