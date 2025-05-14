@@ -1,8 +1,15 @@
 console.log("hello world");
+var constraints = { video: { 
+                   facingMode: "environment",
+                   mandatory: {
+                                        maxWidth: _this.parameters.sourceWidth,
+		                       maxHeight: _this.parameters.sourceHeight}
+                    }
+                };
 
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   // Request access to the camera
-  navigator.mediaDevices.getUserMedia({ video: true })
+  navigator.mediaDevices.getUserMedia(constraints)
     .then(function(stream) {
       // Get the video element and set the stream as the source
       const videoElement = document.querySelector('video');
