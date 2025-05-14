@@ -1,17 +1,185 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AR Sun Path</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">    <title>Camera with Sensors</title>
     <style>
-        /* ... (keep previous styles) ... */
+        body { margin: 0; padding: 20px; }
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+        #preview, #overlay {
+            position: absolute;
+            width: 100%;
+            height: auto;
+        }
+        button { padding: 10px 20px; margin: 10px 0; }
+        .data { margin: 20px 0; padding: 10px; background: #f0f0f0; }
+        .error { color: red; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gyronorm@2.0.6/dist/gyronorm.complete.min.js"></script>
 </head>
 <body>
-    <!-- ... (keep previous HTML structure) ... -->
+    <button onclick="startCamera()">Start Camera</button>
+    <button onclick="startLocation()">Start Location</button>
+    <button onclick="startOrientation()">Start Orientation</button>
     
+    <div class="data" id="location">Location: Waiting...</div>
+    <div class="data" id="orientation">Orientation: Click button to start</div>
+    <div id="error" class="error"></div>
+
+    <div class="container">
+        <video id="preview" playsinline autoplay></video>
+        <canvas id="overlay"></canvas>
+    </div>
+
+    <script>
+        let isOrientationActive = false;
+
+        // iOS detection
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+
+        function showError(message) {
+            document.getElementById('error').textContent = message;
+        }
+
+        function clearError() {
+            document.getElementById('error').textContent = '';
+        }
+
+        async function startCamera() {
+            clearError();
+            const video = document.getElementById('preview');
+            const canvas = document.getElementById('overlay');
+            const ctx = canvas.getContext('2d');
+
+            try {
+                if (!navigator.mediaDevices?.getUserMedia) {
+                    throw new Error('Camera API not supported');
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    ctx.beginPath();
+                    ctx.arc(
+                        canvas.width/2,
+                        canvas.height/2,
+                        100,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 5;
+                    ctx.stroke();
+                };
+
+                video.play();
+
+            } catch (err) {
+                showError(`Camera Error: ${err.message}`);
+            }
+        }
+
+        function startLocation() {
+            clearError();
+            if (!navigator.geolocation) {
+                showError("Geolocation not supported");
+                return;
+            }
+
+            navigator.geolocation.watchPosition(
+                position => {
+                    document.getElementById('location').innerHTML = `
+                        Latitude: ${position.coords.latitude.toFixed(6)}<br>
+                        Longitude: ${position.coords.longitude.toFixed(6)}<br>
+                        Accuracy: ${position.coords.accuracy}m
+                    `;
+                },
+                error => {
+                    showError(`Location Error: ${error.message}`);
+                },
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        }
+
+        function startOrientation() {
+            clearError();
+            if (!isIOS()) {
+                showError("Orientation requires iOS device");
+                return;
+            }
+
+            if (typeof DeviceOrientationEvent === 'undefined' || 
+                !DeviceOrientationEvent.requestPermission) {
+                showError("Orientation API not supported");
+                return;
+            }
+
+            if (isOrientationActive) {
+                showError("Orientation already active");
+                return;
+            }
+
+            DeviceOrientationEvent.requestPermission()
+                .then(permission => {
+                    if (permission === 'granted') {
+                        isOrientationActive = true;
+                        // Change to deviceorientationabsolute event
+                        window.addEventListener('deviceorientationabsolute', handleOrientation);
+                        document.getElementById('orientation').textContent = 
+                            "Orientation: Move device to see data...";
+                    } else {
+                        showError("Orientation permission denied");
+                    }
+                })
+                .catch(error => {
+                    showError(`Orientation Error: ${error.message}`);
+                });
+        }
+
+        function handleOrientation(event) {
+            // Check if we're getting absolute values
+            if (!event.absolute) {
+                showError("Could not get absolute orientation values. Try calibrating your compass.");
+                return;
+            }
+
+            // Handle iOS compass quirks
+            let heading = event.alpha;
+            if (typeof heading === 'number') {
+                // Adjust heading to compass values
+                heading = (360 - heading) % 360; // Convert to standard compass heading
+            }
+
+            const data = {
+                alpha: heading?.toFixed(2) ?? 'N/A',
+                beta: event.beta?.toFixed(2) ?? 'N/A',
+                gamma: event.gamma?.toFixed(2) ?? 'N/A'
+            };
+
+            document.getElementById('orientation').innerHTML = `
+                Compass: ${data.alpha}°<br>
+                Front/Back Tilt: ${data.beta}°<br>
+                Left/Right Tilt: ${data.gamma}°
+            `;
+        }
+    </script>
     <script>
         // Init GN for sensor fusion
         const gn = new GyroNorm();
