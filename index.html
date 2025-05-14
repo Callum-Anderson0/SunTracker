@@ -1,27 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8" />
-    <title>title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera with Circle Overlay</title>
+    <style>
+        body { margin: 0; padding: 20px; }
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+        #preview, #overlay {
+            position: absolute;
+            width: 100%;
+            height: auto;
+        }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
 </head>
 <body>
-    <h1>HELLO</h1>
-    <button onclick="startCamera()">Start Rear Camera</button>
-    <video id="preview" playsinline autoplay></video>
+    <button onclick="startCamera()">Start Camera</button>
+    <div class="container">
+        <video id="preview" playsinline autoplay></video>
+        <canvas id="overlay"></canvas>
+    </div>
     <div id="error" style="color: red;"></div>
 
     <script>
         async function startCamera() {
             const video = document.getElementById('preview');
             const errorDiv = document.getElementById('error');
-            
+            const canvas = document.getElementById('overlay');
+            const ctx = canvas.getContext('2d');
+
             try {
-                // iOS requires secure context (HTTPS or localhost)
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                if (!navigator.mediaDevices?.getUserMedia) {
                     throw new Error('Camera API not supported');
                 }
 
-                // Get environment-facing (rear) camera
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
@@ -31,14 +47,34 @@
                 });
 
                 video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    // Set canvas to match video dimensions
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    // Draw the circle
+                    ctx.beginPath();
+                    ctx.arc(
+                        canvas.width/2,  // X center
+                        canvas.height/2, // Y center
+                        100,             // Radius
+                        0,               // Start angle
+                        Math.PI * 2      // End angle
+                    );
+                    ctx.strokeStyle = '#ff0000'; // Red color
+                    ctx.lineWidth = 5;           // Line thickness
+                    ctx.stroke();
+                };
+
                 video.play();
                 errorDiv.textContent = '';
+
             } catch (err) {
                 errorDiv.textContent = `Error: ${err.message}`;
                 console.error('Camera error:', err);
             }
         }
     </script>
-
 </body>
 </html>
